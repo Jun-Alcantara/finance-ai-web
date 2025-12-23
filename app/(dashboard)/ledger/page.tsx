@@ -8,7 +8,8 @@ import {
   ArrowUpCircle, 
   ArrowDownCircle, 
   Wallet,
-  BookOpen
+  BookOpen,
+  Plus
 } from "lucide-react"
 import { format, subDays } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -32,6 +33,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { getLedger, LedgerItem, LedgerSummary } from "@/services/ledger"
+import { CreateIncomeDialog } from "@/components/incomes/create-income-dialog"
+import { CreateExpenseDialog } from "@/components/expenses/create-expense-dialog"
 
 export default function LedgerPage() {
   const router = useRouter()
@@ -40,6 +43,10 @@ export default function LedgerPage() {
   const [ledgerData, setLedgerData] = useState<LedgerItem[]>([])
   const [summary, setSummary] = useState<LedgerSummary | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Dialog states
+  const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false)
 
   // Initialize date range from URL or default to 30 days
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => {
@@ -89,9 +96,9 @@ export default function LedgerPage() {
             <h2 className="text-3xl font-bold tracking-tight">General Ledger</h2>
          </div>
         
-         {/* Date Range Picker */}
-         <div className="flex items-center gap-2">
-            <Popover>
+         <div className="flex flex-col sm:flex-row items-center gap-2">
+           {/* Date Range Picker */}
+           <Popover>
               <PopoverTrigger asChild>
                 <Button
                   id="date"
@@ -131,6 +138,23 @@ export default function LedgerPage() {
                 />
               </PopoverContent>
             </Popover>
+
+            <div className="flex items-center gap-2">
+                <Button 
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700" 
+                    onClick={() => setIsAddIncomeOpen(true)}
+                >
+                    <Plus className="h-4 w-4" />
+                    Income
+                </Button>
+                <Button 
+                    className="gap-2 bg-red-600 hover:bg-red-700" 
+                    onClick={() => setIsAddExpenseOpen(true)}
+                >
+                    <Plus className="h-4 w-4" />
+                    Expense
+                </Button>
+            </div>
          </div>
       </div>
 
@@ -272,6 +296,17 @@ export default function LedgerPage() {
           </TableBody>
         </Table>
       </div>
-    </div>
-  )
+
+      <CreateIncomeDialog 
+        open={isAddIncomeOpen} 
+        onOpenChange={setIsAddIncomeOpen} 
+        onSuccess={fetchLedger} 
+      />
+
+      <CreateExpenseDialog 
+        open={isAddExpenseOpen} 
+        onOpenChange={setIsAddExpenseOpen} 
+        onSuccess={fetchLedger} 
+      />
+    </div>  )
 }
