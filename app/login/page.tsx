@@ -39,7 +39,7 @@ export default function LoginPage() {
             
             console.log('Logged in user:', user);
             
-            router.push('/');
+            router.push('/dashboard');
         } catch (err: any) {
             console.error('Login error:', err);
             setError(err.response?.data?.message || 'Failed to login. Please check your credentials.');

@@ -1,6 +1,6 @@
 import React from "react"
 import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
+import { DashboardContent } from "@/components/dashboard-content"
 import {
   SidebarInset,
   SidebarProvider,
@@ -14,11 +14,10 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <SidebarInset className="overflow-hidden">
+        <DashboardContent>
           {children}
-        </div>
+        </DashboardContent>
       </SidebarInset>
     </SidebarProvider>
   )

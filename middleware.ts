@@ -20,7 +20,12 @@ export function middleware(request: NextRequest) {
   // Let's refine the logic:
   // 1. If user is on an auth path (login/register) AND has a token -> Redirect to /
   if (authPaths.some(path => pathname.startsWith(path)) && token) {
-    return NextResponse.redirect(new URL('/', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // 1.5 If user is at root '/' AND has a token -> Redirect to /dashboard
+  if (pathname === '/' && token) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // 2. If user is on a protected path AND DOES NOT have a token -> Redirect to /login
@@ -40,7 +45,10 @@ export function middleware(request: NextRequest) {
   
   // Let's protect / and /dashboard.
   
-  const isProtectedPath = pathname === '/' || pathname.startsWith('/dashboard');
+  // Let's protect /dashboard and other private routes.
+  // / is public (Landing Page).
+  
+  const isProtectedPath = pathname.startsWith('/dashboard');
 
   if (isProtectedPath && !token) {
     return NextResponse.redirect(new URL('/login', request.url));
