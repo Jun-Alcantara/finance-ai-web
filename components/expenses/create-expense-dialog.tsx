@@ -46,13 +46,14 @@ export function CreateExpenseDialog({ open, onOpenChange, onSuccess }: CreateExp
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   
   const [formData, setFormData] = useState<Partial<ExpenseInput>>({
-    date: format(new Date(), "yyyy-MM-dd"),
+    due_date: format(new Date(), "yyyy-MM-dd"),
     is_paid: false,
     is_recurring: false,
     recurring_type: 'start_of_month'
   })
   
-  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [dueDate, setDueDate] = useState<Date | undefined>(new Date())
+  const [paymentDate, setPaymentDate] = useState<Date | undefined>(new Date())
   const [recurUntilDate, setRecurUntilDate] = useState<Date | undefined>()
 
   useEffect(() => {
@@ -62,10 +63,25 @@ export function CreateExpenseDialog({ open, onOpenChange, onSuccess }: CreateExp
   }, [open])
 
   useEffect(() => {
-    if (date) {
-      setFormData(prev => ({ ...prev, date: format(date, "yyyy-MM-dd") }))
+    if (dueDate) {
+      setFormData(prev => ({ ...prev, due_date: format(dueDate, "yyyy-MM-dd") }))
     }
-  }, [date])
+  }, [dueDate])
+
+  useEffect(() => {
+    if (paymentDate) {
+      setFormData(prev => ({ ...prev, payment_date: format(paymentDate, "yyyy-MM-dd") }))
+    } else {
+      setFormData(prev => ({ ...prev, payment_date: undefined }))
+    }
+  }, [paymentDate])
+
+  useEffect(() => {
+    // When is_paid toggles, ensure payment_date is set or unset
+    if (formData.is_paid && !paymentDate) {
+        setPaymentDate(new Date())
+    }
+  }, [formData.is_paid])
 
   useEffect(() => {
     if (recurUntilDate) {
@@ -85,8 +101,13 @@ export function CreateExpenseDialog({ open, onOpenChange, onSuccess }: CreateExp
   }
 
   const handleSubmit = async () => {
-    if (!formData.bank_account_id || !formData.amount || !formData.date) {
+    if (!formData.bank_account_id || !formData.amount || !formData.due_date) {
       return // Basic validation
+    }
+
+    if (formData.is_paid && !formData.payment_date) {
+        // Should require payment date
+        return
     }
 
     setLoading(true)
@@ -104,17 +125,21 @@ export function CreateExpenseDialog({ open, onOpenChange, onSuccess }: CreateExp
 
   const resetForm = () => {
     setFormData({
-      date: format(new Date(), "yyyy-MM-dd"),
+      due_date: format(new Date(), "yyyy-MM-dd"),
       is_paid: false,
       is_recurring: false,
       recurring_type: 'start_of_month'
     })
-    setDate(new Date())
+    setDueDate(new Date())
+    setPaymentDate(new Date())
     setRecurUntilDate(undefined)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(val) => {
+        if (!val) resetForm();
+        onOpenChange(val);
+    }}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Add Expense</DialogTitle>
@@ -234,25 +259,25 @@ export function CreateExpenseDialog({ open, onOpenChange, onSuccess }: CreateExp
           </div>
 
           <div className="space-y-2">
-            <Label>Date</Label>
+            <Label>Due Date</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant={"outline"}
                   className={cn(
                     "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
+                    !dueDate && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  {dueDate ? format(dueDate, "PPP") : <span>Pick a due date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <Calendar
                   mode="single"
-                  selected={date}
-                  onSelect={setDate}
+                  selected={dueDate}
+                  onSelect={setDueDate}
                   initialFocus
                 />
               </PopoverContent>
@@ -269,13 +294,43 @@ export function CreateExpenseDialog({ open, onOpenChange, onSuccess }: CreateExp
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-             <Switch
-              id="is_paid"
-              checked={formData.is_paid}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_paid: checked })}
-            />
-            <Label htmlFor="is_paid">Mark as Paid</Label>
+          <div className="flex flex-col space-y-4 pt-2">
+              <div className="flex items-center space-x-2">
+                <Switch
+                    id="is_paid"
+                    checked={formData.is_paid}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_paid: checked })}
+                />
+                <Label htmlFor="is_paid">Mark as Paid</Label>
+              </div>
+
+              {formData.is_paid && (
+                  <div className="space-y-2 pl-6 border-l-2 border-emerald-500">
+                    <Label>Date of Payment</Label>
+                    <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                        variant={"outline"}
+                        className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !paymentDate && "text-muted-foreground"
+                        )}
+                        >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {paymentDate ? format(paymentDate, "PPP") : <span>Pick a payment date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar
+                        mode="single"
+                        selected={paymentDate}
+                        onSelect={setPaymentDate}
+                        initialFocus
+                        />
+                    </PopoverContent>
+                    </Popover>
+                  </div>
+              )}
           </div>
         </div>
 

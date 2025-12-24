@@ -11,7 +11,7 @@ import {
   BookOpen,
   Plus
 } from "lucide-react"
-import { format, subDays } from "date-fns"
+import { format, subDays, addDays } from "date-fns"
 import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -43,6 +50,8 @@ export default function LedgerPage() {
   const [ledgerData, setLedgerData] = useState<LedgerItem[]>([])
   const [summary, setSummary] = useState<LedgerSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedItem, setSelectedItem] = useState<LedgerItem | null>(null)
+  const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false)
 
   // Dialog states
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
@@ -54,7 +63,7 @@ export default function LedgerPage() {
     const end = searchParams.get("to")
     return {
       from: start ? new Date(start) : subDays(new Date(), 30),
-      to: end ? new Date(end) : new Date(),
+      to: end ? new Date(end) : addDays(new Date(), 30),
     }
   })
 
@@ -65,6 +74,37 @@ export default function LedgerPage() {
      if (range.from) params.set("from", format(range.from, "yyyy-MM-dd"))
      if (range.to) params.set("to", format(range.to, "yyyy-MM-dd"))
      router.replace(`?${params.toString()}`)
+  }
+
+  const getRunningBalance = (targetItem: LedgerItem) => {
+    // Sort data chronologically (Oldest first)
+    const sortedData = [...ledgerData].sort((a, b) => {
+      const dateA = new Date(a.date).getTime()
+      const dateB = new Date(b.date).getTime()
+      if (dateA !== dateB) return dateA - dateB
+      return a.id.localeCompare(b.id)
+    })
+
+    let credit = 0
+    let debit = 0
+
+    for (const item of sortedData) {
+      if (item.type === 'credit') credit += Number(item.amount)
+      if (item.type === 'debit') debit += Number(item.amount)
+      
+      if (item.id === targetItem.id) break
+    }
+
+    return {
+        credit,
+        debit,
+        balance: credit - debit
+    }
+  }
+
+  const handleRowClick = (item: LedgerItem) => {
+    setSelectedItem(item)
+    setIsBalanceDialogOpen(true)
   }
 
   // Fetch Ledger Data
@@ -252,7 +292,11 @@ export default function LedgerPage() {
                 </TableRow>
             ) : (
                 ledgerData.map((item) => (
-                    <TableRow key={`${item.type}-${item.id}`} className="hover:bg-muted/50">
+                    <TableRow 
+                        key={`${item.type}-${item.id}`} 
+                        className="hover:bg-muted/50 cursor-pointer"
+                        onClick={() => handleRowClick(item)}
+                    >
                         <TableCell className="font-medium">
                             {format(new Date(item.date), "MMM d, yyyy")}
                         </TableCell>
@@ -302,6 +346,58 @@ export default function LedgerPage() {
         onOpenChange={setIsAddIncomeOpen} 
         onSuccess={fetchLedger} 
       />
+
+      <Dialog open={isBalanceDialogOpen} onOpenChange={setIsBalanceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Running Balance</DialogTitle>
+            <DialogDescription>
+                Calculated balance up to {selectedItem ? format(new Date(selectedItem.date), "MMM d, yyyy") : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedItem && (() => {
+            const stats = getRunningBalance(selectedItem)
+            return (
+              <div className="space-y-4">
+                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    <span className="text-sm font-medium">Description</span>
+                    <span className="text-sm text-muted-foreground">{selectedItem.description}</span>
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Total Credit</span>
+                        <div className="text-lg font-bold text-emerald-600">
+                            + {stats.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Total Debit</span>
+                        <div className="text-lg font-bold text-red-600">
+                            - {stats.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                    </div>
+                 </div>
+
+                 <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                        <span className="font-semibold">Net Balance</span>
+                        <span className={cn(
+                            "text-xl font-bold",
+                            stats.balance >= 0 ? "text-emerald-600" : "text-red-600"
+                        )}>
+                            {stats.balance >= 0 ? '+' : ''} {stats.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 text-right">
+                        * Based on currently visible ledger data
+                    </p>
+                 </div>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <CreateExpenseDialog 
         open={isAddExpenseOpen} 

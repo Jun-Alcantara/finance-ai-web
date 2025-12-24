@@ -48,7 +48,8 @@ export function EditExpenseDialog({ open, onOpenChange, onSuccess, expense }: Ed
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   
   const [formData, setFormData] = useState<Partial<ExpenseUpdateInput>>({})
-  const [date, setDate] = useState<Date | undefined>()
+  const [dueDate, setDueDate] = useState<Date | undefined>()
+  const [paymentDate, setPaymentDate] = useState<Date | undefined>()
   const [recurUntilDate, setRecurUntilDate] = useState<Date | undefined>()
   const [applyToFuture, setApplyToFuture] = useState(false)
 
@@ -62,10 +63,18 @@ export function EditExpenseDialog({ open, onOpenChange, onSuccess, expense }: Ed
   }, [open, expense])
 
   useEffect(() => {
-    if (date) {
-      setFormData(prev => ({ ...prev, date: format(date, "yyyy-MM-dd") }))
+    if (dueDate) {
+      setFormData(prev => ({ ...prev, due_date: format(dueDate, "yyyy-MM-dd") }))
     }
-  }, [date])
+  }, [dueDate])
+
+  useEffect(() => {
+    if (paymentDate) {
+      setFormData(prev => ({ ...prev, payment_date: format(paymentDate, "yyyy-MM-dd") }))
+    } else {
+        setFormData(prev => ({ ...prev, payment_date: undefined }))
+    }
+  }, [paymentDate])
 
   useEffect(() => {
     if (recurUntilDate) {
@@ -80,17 +89,26 @@ export function EditExpenseDialog({ open, onOpenChange, onSuccess, expense }: Ed
       bank_account_id: expense.bank_account_id,
       amount: parseFloat(expense.amount),
       remarks: expense.remarks || "",
-      date: expense.date,
+      due_date: expense.due_date,
+      payment_date: expense.payment_date || undefined,
       is_paid: expense.is_paid,
       is_recurring: expense.is_recurring,
-      recurring_type: expense.recurring_type || undefined,
+      recurring_type: (expense.recurring_type as any) || undefined,
       recurring_day: expense.recurring_day || undefined,
       recur_until: expense.recur_until || undefined,
     })
-    setDate(parseISO(expense.date))
+    setDueDate(parseISO(expense.due_date))
+    setPaymentDate(expense.payment_date ? parseISO(expense.payment_date) : undefined)
     setRecurUntilDate(expense.recur_until ? parseISO(expense.recur_until) : undefined)
     setApplyToFuture(false)
   }
+
+  useEffect(() => {
+    // When is_paid toggles, initialize paymentDate if empty
+    if (formData.is_paid && !paymentDate && expense && !expense.is_paid) {
+        setPaymentDate(new Date())
+    }
+  }, [formData.is_paid])
 
   const fetchDependencies = async () => {
     try {
@@ -102,15 +120,21 @@ export function EditExpenseDialog({ open, onOpenChange, onSuccess, expense }: Ed
   }
 
   const handleSubmit = async () => {
-    if (!expense || !formData.date) return
+    if (!expense) return
+
+    if (!formData.bank_account_id || !formData.amount || !formData.due_date) {
+      console.error("Missing required fields: bank account, amount, or due date.")
+      return // Basic validation
+    }
+    
+    if (formData.is_paid && !formData.payment_date) {
+        console.error("Payment date is required if expense is marked as paid.")
+        return // Require payment date if paid
+    }
 
     setLoading(true)
     try {
-      const payload: ExpenseUpdateInput = {
-        ...formData,
-        apply_to_future: applyToFuture
-      }
-      await updateExpense(expense.id, payload)
+      await updateExpense(expense.id, formData)
       onSuccess()
       onOpenChange(false)
     } catch (error) {
@@ -131,84 +155,112 @@ export function EditExpenseDialog({ open, onOpenChange, onSuccess, expense }: Ed
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
-           {/* Date & Amount */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={setDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-amount">Amount</Label>
-              <Input
-                id="edit-amount"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={formData.amount || ''}
-                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label>Source Bank</Label>
             <Select 
-            value={formData.bank_account_id} 
-            onValueChange={(val) => setFormData({ ...formData, bank_account_id: val })}
+              value={formData.bank_account_id} 
+              onValueChange={(val) => setFormData({ ...formData, bank_account_id: val })}
             >
-            <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select account" />
-            </SelectTrigger>
-            <SelectContent>
+              </SelectTrigger>
+              <SelectContent>
                 {bankAccounts.map((acc) => (
-                <SelectItem key={acc.id} value={acc.id}>
+                  <SelectItem key={acc.id} value={acc.id}>
                     {acc.name}
-                </SelectItem>
+                  </SelectItem>
                 ))}
-            </SelectContent>
+              </SelectContent>
             </Select>
-            </div>
+          </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-remarks">Remarks</Label>
+            <Label htmlFor="amount">Amount</Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={formData.amount || ''}
+              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Due Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !dueDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? format(dueDate, "PPP") : <span>Pick a due date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={setDueDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="remarks">Remarks</Label>
             <Textarea
-              id="edit-remarks"
+              id="remarks"
               placeholder="Optional remarks..."
               value={formData.remarks || ''}
               onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-             <Switch
-              id="edit-is-paid"
-              checked={formData.is_paid}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_paid: checked })}
-              disabled={expense?.is_paid} // If already paid, disabled (though API blocks edits anyway, but UI should hint)
-            />
-            <Label htmlFor="edit-is-paid">Mark as Paid</Label>
+          <div className="flex flex-col space-y-4 pt-2">
+             <div className="flex items-center space-x-2">
+                <Switch
+                    id="is_paid"
+                    checked={formData.is_paid}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_paid: checked })}
+                    disabled={expense?.is_paid} // If already paid, maybe we can't unpay it here? Backend restrictions.
+                />
+                <Label htmlFor="is_paid">Mark as Paid</Label>
+              </div>
+
+              {formData.is_paid && (
+                  <div className="space-y-2 pl-6 border-l-2 border-emerald-500">
+                    <Label>Date of Payment</Label>
+                    <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                        variant={"outline"}
+                        className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !paymentDate && "text-muted-foreground"
+                        )}
+                        disabled={expense?.is_paid} // Can't change payment date if already paid?
+                        >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {paymentDate ? format(paymentDate, "PPP") : <span>Pick a payment date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar
+                        mode="single"
+                        selected={paymentDate}
+                        onSelect={setPaymentDate}
+                        initialFocus
+                        />
+                    </PopoverContent>
+                    </Popover>
+                  </div>
+              )}
           </div>
 
            <div className="space-y-4 border rounded-md p-4 bg-muted/20">

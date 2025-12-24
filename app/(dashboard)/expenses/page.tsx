@@ -53,9 +53,9 @@ import {
 import { CreateExpenseDialog } from "@/components/expenses/create-expense-dialog"
 import { EditExpenseDialog } from "@/components/expenses/edit-expense-dialog"
 import { DeleteExpenseDialog } from "@/components/expenses/delete-expense-dialog"
+import { MarkAsPaidDialog } from "@/components/expenses/mark-as-paid-dialog"
 import { 
   getExpenses, 
-  markExpenseAsPaid, 
   Expense, 
   PaginationMeta 
 } from "@/services/expenses"
@@ -77,7 +77,6 @@ export default function ExpensesPage() {
   const [editExpense, setEditExpense] = useState<Expense | null>(null)
   const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null)
   const [itemToMarkPaid, setItemToMarkPaid] = useState<Expense | null>(null)
-  const [markLoading, setMarkLoading] = useState(false)
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true)
@@ -105,20 +104,6 @@ export default function ExpensesPage() {
     }, 300)
     return () => clearTimeout(timeout)
   }, [fetchExpenses])
-
-  const handleMarkAsPaid = async () => {
-    if (!itemToMarkPaid) return
-    setMarkLoading(true)
-    try {
-      await markExpenseAsPaid(itemToMarkPaid.id)
-      fetchExpenses()
-      setItemToMarkPaid(null)
-    } catch (error) {
-      console.error("Failed to mark as paid", error)
-    } finally {
-      setMarkLoading(false)
-    }
-  }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -181,7 +166,7 @@ export default function ExpensesPage() {
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-6 w-[120px]">Date</TableHead>
+                <TableHead className="pl-6 w-[120px]">Due Date</TableHead>
                 <TableHead className="w-[150px]">Source Bank</TableHead>
                 <TableHead>Remarks</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
@@ -209,7 +194,7 @@ export default function ExpensesPage() {
                     <TableRow key={expense.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="pl-6 font-medium">
                         <div className="flex flex-col">
-                            <span>{format(new Date(expense.date), "MMM d, yyyy")}</span>
+                            <span>{format(new Date(expense.due_date), "MMM d, yyyy")}</span>
                             {expense.is_recurring && (
                                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
                                     <RefreshCw className="h-3 w-3" />
@@ -363,23 +348,12 @@ export default function ExpensesPage() {
         expense={deleteExpense}
       />
 
-      <AlertDialog open={!!itemToMarkPaid} onOpenChange={(open) => !open && setItemToMarkPaid(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark as Paid?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will deduct the amount from the source bank account. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={markLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMarkAsPaid} disabled={markLoading}>
-              {markLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <MarkAsPaidDialog
+        open={!!itemToMarkPaid}
+        onOpenChange={(open) => !open && setItemToMarkPaid(null)}
+        onSuccess={fetchExpenses}
+        expense={itemToMarkPaid}
+      />
     </div>
   )
 }
